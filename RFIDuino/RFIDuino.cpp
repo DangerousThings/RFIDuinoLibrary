@@ -1,20 +1,14 @@
 /****************************************************************************************************
 * rfiduino.cpp - RFIDuino Library CPP File
 *
-* RFIDuino Library v1.2 by TrossenRobotics / RobotGeek
+* RFIDuino Library v1.2 by TrossenRobotics / RobotGeek / Dangerous Things
 *
 * This Library enables a Geekduino/Arduino to work with the RobotGeek RFIDuino Shield.
 * Using the shield and this library a user can detect a card, read/decode the card,
 * compare the read to previous reads, and interact with the onboard buzzer.
 *
 * Links
-*    RFIDuino Getting Started Guide
-*      http://learn.robotgeek.com/getting-started/41-rfiduino/142-rfiduino-getting-started-guide.html
-*    RFIDuino Library Documentation
-*      http://learn.robotgeek.com/41-rfiduino/144-rfiduino-library-documentation.html
-*    RFIDuino Shield Product Page
-*      http://www.robotgeek.com/rfiduino
-*
+*      http://dngr.us/rfiduino
 *
 ****************************************************************************************************/
 #include "Arduino.h"
