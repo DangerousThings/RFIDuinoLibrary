@@ -21,6 +21,8 @@
 #define RFIDuino_h                          
 
 #define DECODE_LIMIT_MS 100                                         		// max time decodeTag() keeps looking for a frame
+#define WAKE_MS     35                                              		// EM4095 Tset max: wake-up until reads are valid
+#define MIN_SLOT_MS 100                                             		// shortest duty-cycle slot: wake-up + a confirmed read at 125 kHz
 #define TIMEOUT     1000                                            		// standard timeout for manchester decode
 
 class RFIDuino {
@@ -44,6 +46,15 @@ class RFIDuino {
 		// higher level tag scanning / reporting
 		bool scanForTag(byte *tagData);
 
+		// Duty cycling, to save power: the EM4095 is awake for 1 slot, then asleep for the rest of the cycle.
+		// 1.0 = always on (default); 0.25 = awake 1 slot in 4. scanForTag() does the switching and never
+		// sleeps mid-read or between the two reads of a pair. Don't call setSleep() while below 1.0.
+		void setDutyCycle(float dutyCycle);
+
+		// Duty-cycle slot in ms: wake-up (35 ms) + listening. The default covers a confirmed read at 100-150 kHz;
+		// raise it if reads fail at the edge of range. Values below MIN_SLOT_MS are raised to it.
+		unsigned int slotMs = 160;
+
 		// Sleep getter and setter
 		void setSleep(bool state);                                  	// Change shd pin state
 		bool getSleep();
@@ -63,6 +74,16 @@ class RFIDuino {
 
 		// Cached sleep pin state
 		bool sleep;
+
+		// scanForTag() pair verification
+		byte tagDataBuffer[5];				// previous good read
+		bool haveFirstRead = false;			// true once tagDataBuffer holds a read to compare against
+
+		// duty cycling
+		unsigned int sleepSixteenths = 0;		// sleep length in 1/16 slots; 0 = duty cycling off. Integer so float math stays in setDutyCycle()
+		unsigned long phaseStart = 0;			// millis() when the chip last woke or went to sleep
+		unsigned long sleepFor = 0;			// length of the current sleep, ms
+		void sleepNow();
 
 };
 

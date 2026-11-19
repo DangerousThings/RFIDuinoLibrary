@@ -288,19 +288,69 @@ void RFIDuino::transferToBuffer(byte *tagData, byte *tagDataBuffer) {
  * @return
  */
 bool RFIDuino::scanForTag(byte *tagData) {
-    static byte tagDataBuffer[5];       // previous good read. 'static' so it survives between calls
-    static bool haveFirstRead = false;  // true once tagDataBuffer holds a read to compare against
+    bool lastAttempt = false;           // duty cycling: slot is over, but a pair is pending; finish it, then sleep
 
-    if (!decodeTag(tagData)) return false;
-
-    if (haveFirstRead && compareTagData(tagData, tagDataBuffer)) {
-        haveFirstRead = false;          // verified; the next tag needs two fresh reads
-        return true;
+    if (sleepSixteenths) {
+        unsigned long elapsed = millis() - phaseStart;
+        if (sleep) {
+            if (elapsed < sleepFor) return false;
+            digitalWrite(shd, LOW);     // wake without blocking; reads are held off below until the PLL locks
+            sleep = false;
+            phaseStart = millis();
+            return false;
+        }
+        if (elapsed < WAKE_MS) return false;
+        if (elapsed >= max(slotMs, MIN_SLOT_MS)) {
+            if (!haveFirstRead) {
+                sleepNow();
+                return false;
+            }
+            lastAttempt = true;
+        }
     }
 
-    transferToBuffer(tagData, tagDataBuffer);  // first read, or a mismatch: this read becomes the new reference
-    haveFirstRead = true;
-    return false;
+    bool verified = false;
+    if (decodeTag(tagData)) {
+        if (haveFirstRead && compareTagData(tagData, tagDataBuffer)) {
+            haveFirstRead = false;      // verified; the next tag needs two fresh reads
+            verified = true;
+        } else {
+            transferToBuffer(tagData, tagDataBuffer);  // first read, or a mismatch: this read becomes the new reference
+            haveFirstRead = true;
+        }
+    }
+
+    if (lastAttempt) sleepNow();
+    return verified;
+}
+
+/**
+ * Duty-cycle the EM4095 to save power. The cycle is built from slots of slotMs: awake for one,
+ * asleep for the rest. scanForTag() switches between them, so keep calling it as usual.
+ *
+ * @param dutyCycle 1.0 = always on (default), 0.25 = awake 1 slot in 4. Values <= 0 are ignored
+ *                  (use setSleep(true) to stay asleep); values below 0.001 are raised to it.
+ *                  Sleep is rounded to 1/16 of a slot (10 ms at the default slotMs).
+ */
+void RFIDuino::setDutyCycle(float dutyCycle) {
+    if (dutyCycle <= 0) return;
+    if (dutyCycle >= 1.0) {
+        sleepSixteenths = 0;
+        setSleep(false);                // wake if a cycle left the chip asleep
+        return;
+    }
+    dutyCycle = max(dutyCycle, 0.001f); // caps sleep at 999 slots, so slot * sleepSixteenths fits an unsigned long
+    sleepSixteenths = max((unsigned int)((1.0 / dutyCycle - 1.0) * 16 + 0.5), 1u);
+    phaseStart = millis();              // start a fresh slot now
+}
+
+void RFIDuino::sleepNow() {
+    unsigned int slot = max(slotMs, MIN_SLOT_MS);
+    digitalWrite(shd, HIGH);
+    sleep = true;
+    haveFirstRead = false;              // the tag may be gone by the next wake: start a fresh pair
+    sleepFor = (unsigned long)slot * sleepSixteenths / 16;
+    phaseStart = millis();
 }
 
 /**
@@ -312,7 +362,7 @@ void RFIDuino::setSleep(bool state) {
     if (state != RFIDuino::sleep) {
         digitalWrite(shd, state);
         if (!state) {
-            delay(35); // give the EM4095 time to wake up
+            delay(WAKE_MS); // give the EM4095 time to wake up
         }
 
         RFIDuino::sleep = digitalRead(shd);
