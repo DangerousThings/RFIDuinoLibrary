@@ -5,7 +5,7 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 lib="$here/../RFIDuino"
-out="${TMPDIR:-/tmp}/rfiduino-test"    # overwritten each run
+out="$here/build"    # inside the repo (git-ignored), not a guessable shared /tmp path; overwritten each run
 mkdir -p "$out"
 cp "$lib/RFIDuino.h" "$out/"
 sed 's/decodeTag(tagData)/fakeDecode(tagData)/' "$lib/RFIDuino.cpp" > "$out/lib.cpp"
