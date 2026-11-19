@@ -299,7 +299,7 @@ bool RFIDuino::scanForTag(byte *tagData) {
 }
 
 /**
- * Set the EM4905 to sleep (true) or awake (false) using the shd pin
+ * Set the EM4095 to sleep (true) or awake (false) using the shd pin
  *
  * @param state
  */

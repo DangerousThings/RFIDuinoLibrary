@@ -4,16 +4,16 @@ You can install this library by copying the 'RFIDuino' folder into your 'librari
 
 Check out the [examples](RFIDuino/examples) to get get started!
 
-![Pinout of the RFIDuino 1.2](RFIDuino_pinout.png "RFIDuino 1.2 pinout")
+<img src="RFIDuino_Shield_Labeled.png" height=500 alt="RFIDuino Shield 1.2 labeled pinout" />
 
 ### Pins Used by the RFIDuino 1.2
 - Misc
   - Red LED (LED1): 8
   - Green LED (LED2): 4
   - Buzzer: 5
-- EM4905
+- EM4095
   - Ready Clock: 2
-  - Demod: 2
+  - Demod: 3
   - Mod: 6
   - SHD (Sleep): 7
  
