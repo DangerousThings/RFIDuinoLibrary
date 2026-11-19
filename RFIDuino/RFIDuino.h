@@ -1,7 +1,7 @@
 /****************************************************************************************************
 * rfiduino.h - RFIDuino Library Header File
 *
-* RFIDuino Library v1.2 by TrossenRobotics / RobotGeek / Dangerous Things
+* RFIDuino Library v1.3 by TrossenRobotics / RobotGeek / Dangerous Things
 *
 *	This Library enables a Geekduino/Arduino to work with the RobotGeek RFIDuino Shield.
 *	Using the sheild and this library a user can detect a card, read/decode the card,
@@ -9,7 +9,7 @@
 *
 * Links
 *    RFIDuino Shield Product Page
-*      http://dngr.us/rfiduino
+*      http://dngr.us/rfiduino-shield
 *
 * Header file for the RFIDuino Library
 *

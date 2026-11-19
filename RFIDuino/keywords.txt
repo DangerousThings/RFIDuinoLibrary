@@ -5,4 +5,7 @@ errorSound	KEYWORD2
 successSound	KEYWORD2
 transferToBuffer	KEYWORD2
 compareTagData	KEYWORD2
-scanForTag		KEYWORD2
+scanForTag	KEYWORD2
+setSleep	KEYWORD2
+getSleep	KEYWORD2
+delayVal	KEYWORD2
