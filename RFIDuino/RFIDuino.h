@@ -18,15 +18,19 @@
 #include "Arduino.h"
 
 #ifndef RFIDuino_h                                                  		// load header if we have not defined RFIDuino_h
-#define RFIDuino_h                                                  		// define RFIDuino_h, to prevent code being loaded if this library is loaded a second time
+#define RFIDuino_h                          
 
-#define DELAYVAL    320                                             		// 384 // standard delay for manchster decode
 #define TIMEOUT     1000                                            		// standard timeout for manchester decode
 
 class RFIDuino {
 	public:
 
 		RFIDuino(float version = 1.2);
+		
+		// Manchester decode: microseconds from a signal edge to the bit sample. Must land in the second half
+		// of a bit, ~0.6-0.75 of it (384 = 3/4 bit at 125 kHz). Tune if your antenna doesn't resonate at 125 kHz.
+		unsigned int delayVal = 320;
+
 		// i/o
 		void errorSound(); 					        // play an error sound to the buzzer
 		void successSound(); 				                // play a success sound ot the buzzer
@@ -39,12 +43,11 @@ class RFIDuino {
 		// higher level tag scanning / reporting
 		bool scanForTag(byte *tagData);
 
-        	// Sleep getter and setter
-        	void setSleep(bool state);                                  	// Change shd pin state
-        	bool getSleep();
+		// Sleep getter and setter
+		void setSleep(bool state);                                  	// Change shd pin state
+		bool getSleep();
 
-
-        	// user output pin values, variables as they will change depending on which hardware is used
+		// user output pin values, variables as they will change depending on which hardware is used
 		int buzzer;
 		int led1;
 		int led2;
@@ -57,8 +60,8 @@ class RFIDuino {
 		int mod;
 		int rdyClk;
 
-        	// Cached sleep pin state
-        	bool sleep;
+		// Cached sleep pin state
+		bool sleep;
 
 };
 

@@ -103,7 +103,7 @@ bool RFIDuino::decodeTag(unsigned char *buf) {
         }
         timeCount = 0;
 
-        delayMicroseconds(DELAYVAL);
+        delayMicroseconds(RFIDuino::delayVal);
         if(digitalRead(demodOut)) {
             // 9 header bits
             for(i = 0; i < 8; i++) {
@@ -121,7 +121,7 @@ bool RFIDuino::decodeTag(unsigned char *buf) {
                 if(timeOutFlag) {
                   break;
                 } else {
-                  delayMicroseconds(DELAYVAL);
+                  delayMicroseconds(RFIDuino::delayVal);
                   if( 0 == digitalRead(demodOut)) {
                     break;
                   }
@@ -158,7 +158,7 @@ bool RFIDuino::decodeTag(unsigned char *buf) {
                     j = row >> 1;
 
                     for(col = 0, row_parity = 0; col < 5; col++) {
-                        delayMicroseconds(DELAYVAL);
+                        delayMicroseconds(RFIDuino::delayVal);
                         if(digitalRead(demodOut)) {
                             dat = 1;
                         } else {
@@ -306,6 +306,9 @@ bool RFIDuino::scanForTag(byte *tagData) {
 void RFIDuino::setSleep(bool state) {
     if (state != RFIDuino::sleep) {
         digitalWrite(shd, state);
+        if (!state) {
+            delay(35); // give the EM4095 time to wake up
+        }
 
         RFIDuino::sleep = digitalRead(shd);
     }
