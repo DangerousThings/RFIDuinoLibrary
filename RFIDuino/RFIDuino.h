@@ -20,6 +20,7 @@
 #ifndef RFIDuino_h                                                  		// load header if we have not defined RFIDuino_h
 #define RFIDuino_h                          
 
+#define DECODE_LIMIT_MS 100                                         		// max time decodeTag() keeps looking for a frame
 #define TIMEOUT     1000                                            		// standard timeout for manchester decode
 
 class RFIDuino {

@@ -82,10 +82,15 @@ bool RFIDuino::decodeTag(unsigned char *buf) {
     unsigned char row_parity;
     unsigned char col_parity[5];
     unsigned char dat;
-    unsigned char searchCount = 0;
     unsigned char j;
+    unsigned long start = millis();
 
     while (1) {
+        // Give up between attempts, never mid-frame. Two EM4100 frames at the slowest
+        // carrier (100 kHz) take ~82 ms, so any tag in the field gets a full read first.
+        if (millis() - start >= DECODE_LIMIT_MS) {
+            return false;
+        }
         timeCount = 0;
 
         // watch for demodOut to go low
