@@ -23,3 +23,12 @@ Check out the [examples](RFIDuino/examples) to get get started!
 - Digital
   - 9-12
 - 4-pin I²C Breakout
+
+### Running the tests
+
+The tag-verification and duty-cycle logic has tests that run on your computer, no Arduino needed.
+With `g++` installed, from the repo root:
+
+    test/run.sh
+
+They don't cover the radio itself, so check changes to tag reading on real hardware too.
