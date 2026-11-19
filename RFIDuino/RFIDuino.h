@@ -83,7 +83,6 @@ class RFIDuino {
 		unsigned int sleepSixteenths = 0;		// sleep length in 1/16 slots; 0 = duty cycling off. Integer so float math stays in setDutyCycle()
 		unsigned long phaseStart = 0;			// millis() when the chip last woke or went to sleep
 		unsigned long sleepFor = 0;			// length of the current sleep, ms
-		void sleepNow();
 
 };
 

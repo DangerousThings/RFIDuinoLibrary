@@ -288,7 +288,7 @@ void RFIDuino::transferToBuffer(byte *tagData, byte *tagDataBuffer) {
  * @return
  */
 bool RFIDuino::scanForTag(byte *tagData) {
-    bool lastAttempt = false;           // duty cycling: slot is over, but a pair is pending; finish it, then sleep
+    bool slotOver = false;              // duty cycling: sleep after this call (finishing a pending pair first)
 
     if (sleepSixteenths) {
         unsigned long elapsed = millis() - phaseStart;
@@ -300,17 +300,11 @@ bool RFIDuino::scanForTag(byte *tagData) {
             return false;
         }
         if (elapsed < WAKE_MS) return false;
-        if (elapsed >= max(slotMs, MIN_SLOT_MS)) {
-            if (!haveFirstRead) {
-                sleepNow();
-                return false;
-            }
-            lastAttempt = true;
-        }
+        slotOver = elapsed >= max(slotMs, MIN_SLOT_MS);
     }
 
     bool verified = false;
-    if (decodeTag(tagData)) {
+    if (!(slotOver && !haveFirstRead) && decodeTag(tagData)) {    // slot over: only finish a pending pair
         if (haveFirstRead && compareTagData(tagData, tagDataBuffer)) {
             haveFirstRead = false;      // verified; the next tag needs two fresh reads
             verified = true;
@@ -320,7 +314,12 @@ bool RFIDuino::scanForTag(byte *tagData) {
         }
     }
 
-    if (lastAttempt) sleepNow();
+    if (slotOver) {
+        setSleep(true);
+        haveFirstRead = false;          // the tag may be gone by the next wake: start a fresh pair
+        sleepFor = (unsigned long)max(slotMs, MIN_SLOT_MS) * sleepSixteenths / 16;
+        phaseStart = millis();
+    }
     return verified;
 }
 
@@ -342,15 +341,6 @@ void RFIDuino::setDutyCycle(float dutyCycle) {
     dutyCycle = max(dutyCycle, 0.001f); // caps sleep at 999 slots, so slot * sleepSixteenths fits an unsigned long
     sleepSixteenths = max((unsigned int)((1.0 / dutyCycle - 1.0) * 16 + 0.5), 1u);
     phaseStart = millis();              // start a fresh slot now
-}
-
-void RFIDuino::sleepNow() {
-    unsigned int slot = max(slotMs, MIN_SLOT_MS);
-    digitalWrite(shd, HIGH);
-    sleep = true;
-    haveFirstRead = false;              // the tag may be gone by the next wake: start a fresh pair
-    sleepFor = (unsigned long)slot * sleepSixteenths / 16;
-    phaseStart = millis();
 }
 
 /**
