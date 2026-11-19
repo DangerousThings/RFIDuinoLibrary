@@ -20,7 +20,6 @@
  * @param float [version=1.2]
  */
 RFIDuino::RFIDuino(float version) {
-    static bool sleep = false;
     if (version == (float) 1.1) {
     // original RFIDuino (4-pin antenna, no printed version number)
         // User Accessible Output
@@ -66,6 +65,7 @@ RFIDuino::RFIDuino(float version) {
     // set shd and MOD low to prepare for reading
     digitalWrite(shd, LOW);
     digitalWrite(mod, LOW);
+    sleep = digitalRead(shd);
 }
 
 /**
@@ -283,32 +283,19 @@ void RFIDuino::transferToBuffer(byte *tagData, byte *tagDataBuffer) {
  * @return
  */
 bool RFIDuino::scanForTag(byte *tagData) {
-    static byte tagDataBuffer[5];      // A Buffer for verifying the tag data. 'static' so that the data is maintained the next time the loop is called
-    static int readCount = 0;          // the number of times a tag has been read. 'static' so that the data is maintained the next time the loop is called
-    boolean verifyRead = false; // true when a tag's ID matches a previous read, false otherwise
-    boolean tagCheck = false;   // true when a tag has been read, false otherwise
+    static byte tagDataBuffer[5];       // previous good read. 'static' so it survives between calls
+    static bool haveFirstRead = false;  // true once tagDataBuffer holds a read to compare against
 
-    tagCheck = decodeTag(tagData); // run the decodetag to check for the tag
-    if (tagCheck == true) {
-    // if 'true' is returned from the decodetag function, a tag was successfully scanned
-        readCount++;      // increase count since we've seen a tag
+    if (!decodeTag(tagData)) return false;
 
-        if (readCount == 1) {
-        // if the tag has been read only one time, proceed
-            transferToBuffer(tagData, tagDataBuffer);  // place the data from the current tag read into the buffer for the next read
-        } else if(readCount == 2) {
-        // if we see a tag a second time, proceed
-            verifyRead = compareTagData(tagData, tagDataBuffer); //run the checkBuffer function to compare the data in the buffer (the last read) with the data from the current read
-
-            if (verifyRead == true) {
-            // if a 'true' is returned by compareTagData, the current read matches the last read
-                readCount = 0; // because a tag has been successfully verified, reset the readCount to '0' for the next tag
-                return true;
-            }
-        }
-    } else {
-      return false;
+    if (haveFirstRead && compareTagData(tagData, tagDataBuffer)) {
+        haveFirstRead = false;          // verified; the next tag needs two fresh reads
+        return true;
     }
+
+    transferToBuffer(tagData, tagDataBuffer);  // first read, or a mismatch: this read becomes the new reference
+    haveFirstRead = true;
+    return false;
 }
 
 /**
@@ -317,13 +304,13 @@ bool RFIDuino::scanForTag(byte *tagData) {
  * @param state
  */
 void RFIDuino::setSleep(bool state) {
-    if (state != sleep) {
+    if (state != RFIDuino::sleep) {
         digitalWrite(shd, state);
 
-        sleep = digitalRead(shd);
+        RFIDuino::sleep = digitalRead(shd);
     }
 }
 
 bool RFIDuino::getSleep() {
-    return sleep;
+    return RFIDuino::sleep;
 }
