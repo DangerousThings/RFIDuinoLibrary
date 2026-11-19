@@ -9,3 +9,5 @@ scanForTag	KEYWORD2
 setSleep	KEYWORD2
 getSleep	KEYWORD2
 delayVal	KEYWORD2
+setDutyCycle	KEYWORD2
+slotMs	KEYWORD2
