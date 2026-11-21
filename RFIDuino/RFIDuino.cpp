@@ -1,14 +1,14 @@
 /****************************************************************************************************
 * rfiduino.cpp - RFIDuino Library CPP File
 *
-* RFIDuino Library v1.2 by TrossenRobotics / RobotGeek / Dangerous Things
+* RFIDuino Library v1.3 by TrossenRobotics / RobotGeek / Dangerous Things
 *
 * This Library enables a Geekduino/Arduino to work with the RobotGeek RFIDuino Shield.
 * Using the shield and this library a user can detect a card, read/decode the card,
 * compare the read to previous reads, and interact with the onboard buzzer.
 *
 * Links
-*      http://dngr.us/rfiduino
+*      http://dngr.us/rfiduino-shield
 *
 ****************************************************************************************************/
 #include "Arduino.h"
@@ -20,7 +20,6 @@
  * @param float [version=1.2]
  */
 RFIDuino::RFIDuino(float version) {
-    static bool sleep = false;
     if (version == (float) 1.1) {
     // original RFIDuino (4-pin antenna, no printed version number)
         // User Accessible Output
@@ -66,6 +65,7 @@ RFIDuino::RFIDuino(float version) {
     // set shd and MOD low to prepare for reading
     digitalWrite(shd, LOW);
     digitalWrite(mod, LOW);
+    sleep = digitalRead(shd);
 }
 
 /**
@@ -82,10 +82,15 @@ bool RFIDuino::decodeTag(unsigned char *buf) {
     unsigned char row_parity;
     unsigned char col_parity[5];
     unsigned char dat;
-    unsigned char searchCount = 0;
     unsigned char j;
+    unsigned long start = millis();
 
     while (1) {
+        // Give up between attempts, never mid-frame. Two EM4100 frames at the slowest
+        // carrier (100 kHz) take ~82 ms, so any tag in the field gets a full read first.
+        if (millis() - start >= DECODE_LIMIT_MS) {
+            return false;
+        }
         timeCount = 0;
 
         // watch for demodOut to go low
@@ -103,7 +108,7 @@ bool RFIDuino::decodeTag(unsigned char *buf) {
         }
         timeCount = 0;
 
-        delayMicroseconds(DELAYVAL);
+        delayMicroseconds(RFIDuino::delayVal);
         if(digitalRead(demodOut)) {
             // 9 header bits
             for(i = 0; i < 8; i++) {
@@ -121,7 +126,7 @@ bool RFIDuino::decodeTag(unsigned char *buf) {
                 if(timeOutFlag) {
                   break;
                 } else {
-                  delayMicroseconds(DELAYVAL);
+                  delayMicroseconds(RFIDuino::delayVal);
                   if( 0 == digitalRead(demodOut)) {
                     break;
                   }
@@ -158,7 +163,7 @@ bool RFIDuino::decodeTag(unsigned char *buf) {
                     j = row >> 1;
 
                     for(col = 0, row_parity = 0; col < 5; col++) {
-                        delayMicroseconds(DELAYVAL);
+                        delayMicroseconds(RFIDuino::delayVal);
                         if(digitalRead(demodOut)) {
                             dat = 1;
                         } else {
@@ -283,47 +288,77 @@ void RFIDuino::transferToBuffer(byte *tagData, byte *tagDataBuffer) {
  * @return
  */
 bool RFIDuino::scanForTag(byte *tagData) {
-    static byte tagDataBuffer[5];      // A Buffer for verifying the tag data. 'static' so that the data is maintained the next time the loop is called
-    static int readCount = 0;          // the number of times a tag has been read. 'static' so that the data is maintained the next time the loop is called
-    boolean verifyRead = false; // true when a tag's ID matches a previous read, false otherwise
-    boolean tagCheck = false;   // true when a tag has been read, false otherwise
+    bool slotOver = false;              // duty cycling: sleep after this call (finishing a pending pair first)
 
-    tagCheck = decodeTag(tagData); // run the decodetag to check for the tag
-    if (tagCheck == true) {
-    // if 'true' is returned from the decodetag function, a tag was successfully scanned
-        readCount++;      // increase count since we've seen a tag
-
-        if (readCount == 1) {
-        // if the tag has been read only one time, proceed
-            transferToBuffer(tagData, tagDataBuffer);  // place the data from the current tag read into the buffer for the next read
-        } else if(readCount == 2) {
-        // if we see a tag a second time, proceed
-            verifyRead = compareTagData(tagData, tagDataBuffer); //run the checkBuffer function to compare the data in the buffer (the last read) with the data from the current read
-
-            if (verifyRead == true) {
-            // if a 'true' is returned by compareTagData, the current read matches the last read
-                readCount = 0; // because a tag has been successfully verified, reset the readCount to '0' for the next tag
-                return true;
-            }
+    if (sleepSixteenths) {
+        unsigned long elapsed = millis() - phaseStart;
+        if (sleep) {
+            if (elapsed < sleepFor) return false;
+            digitalWrite(shd, LOW);     // wake without blocking; reads are held off below until the PLL locks
+            sleep = false;
+            phaseStart = millis();
+            return false;
         }
-    } else {
-      return false;
+        if (elapsed < WAKE_MS) return false;
+        slotOver = elapsed >= max(slotMs, MIN_SLOT_MS);
     }
+
+    bool verified = false;
+    if (!(slotOver && !haveFirstRead) && decodeTag(tagData)) {    // slot over: only finish a pending pair
+        if (haveFirstRead && compareTagData(tagData, tagDataBuffer)) {
+            haveFirstRead = false;      // verified; the next tag needs two fresh reads
+            verified = true;
+        } else {
+            transferToBuffer(tagData, tagDataBuffer);  // first read, or a mismatch: this read becomes the new reference
+            haveFirstRead = true;
+        }
+    }
+
+    if (slotOver) {
+        setSleep(true);
+        haveFirstRead = false;          // the tag may be gone by the next wake: start a fresh pair
+        sleepFor = (unsigned long)max(slotMs, MIN_SLOT_MS) * sleepSixteenths / 16;
+        phaseStart = millis();
+    }
+    return verified;
 }
 
 /**
- * Set the EM4905 to sleep (true) or awake (false) using the shd pin
+ * Duty-cycle the EM4095 to save power. The cycle is built from slots of slotMs: awake for one,
+ * asleep for the rest. scanForTag() switches between them, so keep calling it as usual.
+ *
+ * @param dutyCycle 1.0 = always on (default), 0.25 = awake 1 slot in 4. Values <= 0 are ignored
+ *                  (use setSleep(true) to stay asleep); values below 0.001 are raised to it.
+ *                  Sleep is rounded to 1/16 of a slot (10 ms at the default slotMs).
+ */
+void RFIDuino::setDutyCycle(float dutyCycle) {
+    if (dutyCycle <= 0) return;
+    if (dutyCycle >= 1.0) {
+        sleepSixteenths = 0;
+        setSleep(false);                // wake if a cycle left the chip asleep
+        return;
+    }
+    dutyCycle = max(dutyCycle, 0.001f); // caps sleep at 999 slots, so slot * sleepSixteenths fits an unsigned long
+    sleepSixteenths = max((unsigned int)((1.0 / dutyCycle - 1.0) * 16 + 0.5), 1u);
+    phaseStart = millis();              // start a fresh slot now
+}
+
+/**
+ * Set the EM4095 to sleep (true) or awake (false) using the shd pin
  *
  * @param state
  */
 void RFIDuino::setSleep(bool state) {
-    if (state != sleep) {
+    if (state != RFIDuino::sleep) {
         digitalWrite(shd, state);
+        if (!state) {
+            delay(WAKE_MS); // give the EM4095 time to wake up
+        }
 
-        sleep = digitalRead(shd);
+        RFIDuino::sleep = digitalRead(shd);
     }
 }
 
 bool RFIDuino::getSleep() {
-    return sleep;
+    return RFIDuino::sleep;
 }
